@@ -2,45 +2,57 @@
 #include "esphome.h"
 using namespace std;
 
-std::vector<int> comelit_encode(int indirizzo, int codice)
+std::vector<int> comelit_encode(int address, int code)
 {
     std::vector<int> out;
-    bitset<6> Code(codice);
-    bitset<8> Addr(indirizzo);
+    bitset<6> Code(code);
+    bitset<8> Addr(address);
 
-    int contauno = 0;
+    int cnt = 0;
 
     out.push_back(3000);
     out.push_back(-16000);
 
-    for (int i=0; i<6; i++){
+    for (int i = 0; i < 6; i++)
+    {
         out.push_back(3000);
-        if (Code.test(i)) {
+        if (Code.test(i))
+        {
             out.push_back(-6000);
-            contauno++;
-        } else {
+            cnt++;
+        }
+        else
+        {
             out.push_back(-3000);
         }
     }
 
-    for (int i=0; i<8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
         out.push_back(3000);
-        if (Addr.test(i)) {
+        if (Addr.test(i))
+        {
             out.push_back(-6000);
-            contauno++;
-        } else {
+            cnt++;
+        }
+        else
+        {
             out.push_back(-3000);
         }
     }
 
-    bitset<4> Check(contauno);
-    ESP_LOGD("DEBUG", "%i", contauno);
+    bitset<4> Check(cnt);
+    ESP_LOGD("DEBUG", "%i", cnt);
 
-    for (int i=0; i<4; i++) {
+    for (int i = 0; i < 4; i++)
+    {
         out.push_back(3000);
-        if (Check.test(i)) {
+        if (Check.test(i))
+        {
             out.push_back(-6000);
-        } else {
+        }
+        else
+        {
             out.push_back(-3000);
         }
     }

@@ -1,148 +1,147 @@
 # comelit-esphome
-Interfaccia Comelit Simplebus per Home Assistant
+Comelit Simplebus2 Interface for Home Assistant
 
-**Novità:** *Esiste anche un side-project che condivide lo stesso hardware: [comelit-esp8266](https://github.com/mansellrace/comelit-esp8266). è una versione semplificata e slegata dal mondo di home assistant, nata per permettere la decodifica e l'interfacciamento dello stesso protocollo, con lo stesso hardware, per interfacciare il bus comelit anche sistemi domotici diversi, per costruire ripetitori di chiamata citofonica, etc.*
+**New**: *There is also a side-project that shares the same hardware: [comelit-esp8266](https://github.com/mansellrace/comelit-esp8266). it is a simplified and unrelated version of the home assistant world, created to allow decoding and interfacing the same protocol, with the same hardware, to interface the comelit bus even different home automation systems, to build intercom call repeaters, etc.*
 
-## Introduzione al progetto
+## Introduction to the project
 
-Inizialmente volevo modificare il mio citofono Comelit mini vivavoce 6721W per interfacciarlo ad Home Assistant, per poter ricevere una notifica quando qualcuno mi citofona, e per poter aprire i due portoni comandati dal citofono comodamente da remoto.
+Initially, I wanted to modify my Comelit mini hands-free intercom 6721W to interface it with Home Assistant, so that I can receive a notification when someone intercoms me, and to be able to open the two doors controlled by the intercom conveniently remotely.
 
-![Comelit mini](/immagini/comelit_mini.jpg)
+![Comelit mini](/images/comelit_mini.jpg)
 
-Il citofono lavora su bus a 2 fili Simplebus2 proprietario di Comelit.
-Volevo collegarmi direttamente al circuito stampato del posto interno, il quale però utilizza lo stesso altoparlante per la suoneria e per la chiamata vocale, ha pulsanti a sfioramento, la situazione si faceva complicata.
-Ho scartato l’idea di usare un Ring Intercom, perché nonostante funziona benissimo e supporta il protocollo Simplebus2, non permette di comandare l’apertura del secondo portone, è ingombrante, lavora solamente in cloud e ha il problema dell’alimentazione a batteria.
+The intercom works on Comelit's proprietary Simplebus2 2-wire bus.
+I wanted to connect directly to the printed circuit board of the indoor station, which, however, uses the same speaker for ring and voice call, has touch buttons, the situation was getting complicated.
+I discarded the idea of using a Ring Intercom, because although it works great and supports the Simplebus2 protocol, it does not allow you to control the opening of the second door, it is bulky, works only in the cloud, and has the problem of battery power.
 
-Ho quindi scoperto il meraviglioso lavoro di **[plusvic](https://github.com/plusvic/simplebus2-intercom)** che ha analizzato e decodificato il protocollo simplebus, e ha realizzato un ripetitore di suoneria basato su un PIC usato per decodificare il protocollo, chip di trasmissione wireless, ESP8266.
-**[aoihaugen](https://github.com/aoihaugen/simplebus2-intercom)** ha creato un fork, e ha adattato il codice per la decodifica del segnale su arduino.
-Voglio fare un enorme ringraziamento ad entrambi, senza il vostro lavoro non sarei mai arrivato al mio obiettivo, ho preso abbondantemente spunto da entrambi per hardware e software.
+I then discovered the wonderful work of **[plusvic](https://github.com/plusvic/simplebus2-intercom)** who analyzed and decoded the simplebus protocol, and made a ring repeater based on a PIC used to decode the protocol, wireless transmission chip, ESP8266.
+**[aoihaugen](https://github.com/aoihaugen/simplebus2-intercom)** created a fork, and adapted the code for decoding the signal on arduino.
+I want to give a huge thanks to both of you, without your work I would have never gotten to my goal, I took abundant cues from both of you for hardware and software.
 
-Nella mia realizzazione ho utilizzato un Wemos d1 mini con firmware basato su Esphome, per una facile integrazione su Home Assistant.
+In my implementation I used a Wemos d1 mini with Esphome-based firmware for easy integration on Home Assistant.
 
 ## Hardware
 
-Ho adattato il circuito proposto da **[plusvic](https://github.com/plusvic/simplebus2-intercom)** modificandolo per adattarlo alla situazione del mio impianto condominiale e alle necessità di esphome. La tensione a vuoto che rilevo sui fili del bus è di circa 35V, e il segnale dati è sovrapposto alla tensione DC. 
-Lo scambio di informazioni (comandi) tra posto interno e posto esterno avviene attraverso un segnale dati modulato a 25kHz, nel mio caso di ampiezza picco-picco variabile da 0.5V a 5V in base alla distanza del dispositivo che sta trasmettendo. Quando viene avviata la comunicazione audio/video si aggiunge un ulteriore segnale ad alta frequenza.
+I adapted the circuit proposed by **[plusvic](https://github.com/plusvic/simplebus2-intercom)** by modifying it to fit the situation of my condominium system and the needs of esphome. The no-load voltage I detect on the bus wires is about 35V, and the data signal is superimposed on the DC voltage.
+The exchange of information (commands) between indoor and outdoor station is through a 25kHz modulated data signal, in my case of peak-to-peak amplitude varying from 0.5V to 5V depending on the distance of the device that is transmitting. When audio/video communication is initiated, an additional high-frequency signal is added.
 
-![Schema elettrico](/immagini/schema_elettrico.png)
+![Schema elettrico](/images/schematic.png)
 
-### Sezione alimentazione
+### Power section
 
-Il circuito ha la possibilità di essere alimentato direttamente dal bus.
+The circuit has the option of being powered directly from the bus.
 
-Ho deciso di utilizzare un modulo switching step-down DD4012SA che supporta fino a 40v in ingresso e dà in uscita 5v.
+I decided to use a DD4012SA step-down switching module that supports up to 40v input and gives 5v output.
 
-L’intero circuito assorbe circa 20mA dalla linea bus, che salgono a 160mA durante la trasmissione dati.
+The whole circuit draws about 20mA from the bus line, which increases to 160mA during data transmission.
 
-Ho posto in ingresso un fusibile da 250mA a protezione del circuito, seguito da un ponte raddrizzatore.
+I placed a 250mA fuse at the input to protect the circuit, followed by a rectifier bridge.
 
-L’alimentazione del modulo switching è presa a valle di un filtro RC passa basso, formato da R1 e C2, che elimina le fluttuazioni dovute alla trasmissione dati. Dopo diverse prove il miglior compromesso tra riduzione del rumore ricevuto e indotto sul bus e potenza dissipata l’ho ottenuto con una resistenza da 220Ω, che dissipa appena 75mW in maniera continuativa.
+Power for the switching module is taken downstream from an RC low-pass filter, formed by R1 and C2, which eliminates fluctuations due to data transmission. After several tests, the best compromise between received and induced noise reduction on the bus and power dissipation was obtained with a 220Ω resistor, which dissipates just 75mW continuously.
 
-### Sezione ricezione dati
+### Data receiving section.
 
-Come nel circuito a cui mi sono ispirato, il segnale dati viene captato dal bus grazie a un filtro di tipo passa alto, nello schema composto da R5 e C1, rispettivamente da 10kΩ e 1nF. 
+As in the circuit I was inspired by, the data signal is picked up from the bus by a high-pass type filter, in the schematic consisting of R5 and C1, 10kΩ and 1nF, respectively.
 
-Il filtro ha una frequenza di taglio di circa 15kHz, sufficienti a ridurre le interferenze dovute alla comunicazione audio in banda base.
+The filter has a cutoff frequency of about 15kHz, sufficient to reduce interference due to baseband audio communication.
 
-Il segnale ai capi della resistenza viene quindi dato in ingresso ad un doppio comparatore LM2903 con uscita di tipo open collector. La soglia con cui viene comparato il segnale è posta a circa 0.25v tramite un partitore resistivo.
+The signal at the ends of the resistor is then given as input to a dual LM2903 comparator with an open collector type output. The threshold against which the signal is compared is set at approximately 0.25v via a resistive divider.
 
-Per semplificare la ricezione del segnale da parte del Wemos ho deciso di inserire uno stadio monostabile, eliminando la portante a 25 kHz e sfruttando il secondo comparatore già a bordo dell’LM2903.
+To simplify signal reception by the Wemos, I decided to insert a monostable stage, eliminating the 25-kHz carrier and taking advantage of the second comparator already on board the LM2903.
 
-In presenza di segnale, l’uscita del primo comparatore viene portata bassa scaricando il condensatore C3 da 10nF, in mancanza di segnale il condensatore si carica attraverso la resistenza R9 da 220kΩ.
+In the presence of signal, the output of the first comparator is brought low by discharging the 10nF capacitor C3; in the absence of signal, the capacitor is charged through the 220kΩ resistor R9.
 
-La tensione ai capi del condensatore viene comparata con una seconda tensione fissa, ricavata dallo stesso partitore usato sul primo stadio. L’uscita del secondo comparatore viene mandata al Wemos, che quindi si ritroverà in ingresso i pacchetti dati privati dell’oscillazione della portante.
+The voltage at the ends of the capacitor is compared with a second fixed voltage, obtained from the same divider used on the first stage. The output of the second comparator is sent to the Wemos, which will then have data packets stripped of carrier oscillation as input.
 
-In presenza di un qualsiasi segnale in ingresso, l’uscita del secondo comparatore rimane alta per ulteriori 1.5ms oltre al tempo in cui il segnale sul bus resta alto. Per demodulare la portante dei comandi sarebbe bastato un tempo di 20µs, ma aumentare così tanto la tempistica mi ha permesso di ridurre la captazione di ulteriori segnali presenti sul bus, che disturbano la ricezione e la decodifica dei comandi.
+In the presence of any input signal, the output of the second comparator remains high for an additional 1.5ms beyond the time the signal on the bus remains high. A time of 20µs would have sufficed to demodulate the command carrier, but increasing the timing this much allowed me to reduce the pickup of additional signals present on the bus, which disrupt the reception and decoding of commands.
 
-### Sezione trasmissione dati
+### Data transmission section
 
-La trasmissione dati avviene creando un assorbimento impulsivo sul bus, modulato a 25kHz, con le tempistiche dettate dal protocollo di comunicazione. Un piedino digitale del wemos pilota un transistor NPN, che deve supportare tensioni di almeno 40v e correnti di almeno 150mA. Nel prototipo che ho realizzato ho utilizzato un BC337. 
+Data transmission is accomplished by creating a pulsed absorption on the bus, modulated at 25kHz, with the timing dictated by the communication protocol. A digital pin on the wemos drives an NPN transistor, which must support voltages of at least 40v and currents of at least 150mA. In the prototype I made, I used a BC337.
 
-La corrente che passa dal transistor viene imposta dal valore della resistenza posta sul collettore. Ho scelto di collegare due resistenze da 470Ω in parallelo per dividere la dissipazione di potenza. 
+The current flowing through the transistor is set by the value of the resistor placed on the collector. I chose to connect two 470Ω resistors in parallel to divide the power dissipation.
 
-Nel mio caso, con valori resistivi più alti, i comandi inviati dal wemos non sempre vengono ricevuti correttamente. In base alla distanza dall’alimentatore del bus potrebbe essere necessario modificare il valore.
+In my case, with higher resistor values, the commands sent by the wemos are not always received correctly. Depending on the distance to the bus power supply, it may be necessary to change the value.
 
-### Realizzazione Hardware
+### Hardware Implementation
 
-Inizialmente ho realizzato il circuito su breadboard, una volta messo a punto lo schema definitivo ho realizzato un pcb utilizzando componenti in tecnologia SMD, grande appena 46 x 29 mm, ovvero poco più grande del wemos D1 mini. Nel mio caso è entrato perfettamente dentro la scatoletta tonda predisposta dietro al citofono.
+Initially I made the circuit on breadboard, once the final schematic was finalized I made a pcb using SMD technology components, just 46 x 29 mm in size, which is slightly larger than the wemos D1 mini. In my case it fit perfectly inside the round box set up behind the intercom.
 
-![pcb_3d](/immagini/pcb_3d.png) ![pcb](/immagini/pcb.png)
+![pcb_3d](/images/pcb_3d.png) ![pcb](/images/pcb.png)
 
-Se l’impianto citofonico è alimentato dal contatore condominiale potreste decidere di non alimentare il wemos dal bus, non montando il modulo switching e alimentando il wemos a 5v in maniera indipendente. In tale maniera il consumo del wemos (0.5w) non graverà sull’alimentazione elettrica condominiale
+If the intercom system is powered from the condominium meter, you might decide not to power the wemos from the bus, not mounting the switching module and powering the wemos at 5v independently. In this way, the consumption of the wemos (0.5w) will not burden the condominium power supply
 
-## Protocollo
+## Protocol
 
-Come già accennato, lo scambio di informazioni tra i vari dispositivi avviene tramite un protocollo basato su una portante a 25Khz. Tale portante viene sempre inviata per 3ms. La durata del “silenzio” tra due trasmissioni determina il valore del bit trasmesso, 3ms corrisponde a “0”, 6ms corrisponde a “1”.
+As already mentioned, the exchange of information between the various devices takes place via a protocol based on a 25Khz carrier. Such a carrier is always sent for 3ms. The duration of "silence" between two transmissions determines the value of the transmitted bit, 3ms corresponds to "0," 6ms corresponds to "1."
 
-La trasmissione inizia sempre con un impulso da 3ms, seguito da un silenzio di 16ms.
+The transmission always begins with a 3ms pulse, followed by a 16ms silence.
 
-Successivamente vengono inviati 18 bit, così suddivisi:
+Then 18 bits are sent, divided as follows:
 
-- i primi 8 bit indicano l’indirizzo. Viene trasmesso per prima il bit meno significativo.
-- i successivi 6 bit indicano il comando, anche qui si parte dal bit meno significativo.
-- i successivi 4 bit sono di checksum, indicano semplicemente il numero di bit a 1 inviati nei campi precedenti.
+- the first 8 bits indicate the address. The least significant bit is transmitted first.
+- the next 6 bits indicate the command, again starting with the least significant bit.
+- the next 4 bits are checksum, they simply indicate the number of bits to 1 sent in the previous fields.
 
-Ad esempio, quando dal posto esterno chiamo un citofono interno viene inviato il comando 50. Supponiamo di chiamare il citofono n°21:
-- Comando 50 = 110010
-- Indirizzo 21 = 00010101
+For example, when I call an indoor intercom from the door station, the command 50 is sent. Suppose we call intercom #21:
+- Command 50 = 110010
+- Address 21 = 00010101
 - Checksum 6 = 0110
 
-La sequenza di bit inviata è quindi 010011 10101000 0110
+The bit sequence sent is then 010011 10101000 0110
 
-Sulla linea bus vengono quindi inviati comandi così formattati a tutti i posti interni.
+Commands thus formatted are then sent on the bus line to all apartment stations.
 
-Viene inviato un comando anche quando dal posto interno si richiede di attivare la comunicazione video in assenza di chiamata (comando 20), quando si comanda l’apertura del portone principale (comando 16), quando si comanda l’apertura del portone secondario (comando 29), quando un posto interno riceve la chiamata “fuori porta”, quando si avvia o si interrompe la conversazione audio, quando la chiamata va in timeout, etc.
+A command is also sent when a request is made from the indoor station to activate video communication when there is no call (command 20), when the main door is commanded to open (command 16), when the secondary door is commanded to open (command 29), when an indoor station receives the "out of door" call, when audio conversation is initiated or interrupted, when the call goes into timeout, etc.
 
 ## Software
 
-Come piattaforma software ho usato ESPhome per una veloce integrazione su home assistant.
-Ho deciso di sfruttare i componenti *“remote receiver”* e *“remote transmitter”* per la decodifica dei bit ricevuti. 
+As a software platform I used ESPhome for fast integration on home assistant.
+I decided to take advantage of the *"remote receiver "* and *"remote transmitter "* components for decoding received bits.
 
-Remote receiver decodifica automaticamente i protocolli più comuni relativi a telecomandi o trasmettitori radio. 
+Remote receiver automatically decodes the most common protocols related to remote controls or radio transmitters.
 
-Se la decodifica nativa non è disponibile, si può ricorrere alla modalità raw: ogni volta che viene ricevuto un treno di impulsi viene eseguita una automazione a cui viene passato un array di numeri interi. Il primo numero dell’array, positivo, indica per quanti microsecondi il segnale in ingresso è stato a valore logico alto. Il secondo valore, negativo, indica quanti microsecondi il segnale in ingresso è stato a valore logico basso. I successivi valori seguono la stessa logica, alternando sempre numeri positivi e negativi.
+If native decoding is not available, raw mode can be used: each time a train of pulses is received, an automation is performed to which an array of integers is passed. The first number in the array, positive, indicates how many microseconds the input signal was at logic high value. The second value, negative, indicates how many microseconds the input signal was at logic low. Subsequent values follow the same logic, always alternating positive and negative numbers.
 
-Viene da sé che basta controllare il valore dei numeri negativi dell’array per decodificare il comando e l’indirizzo del protocollo comelit simplebus2.
+It goes without saying that just checking the value of the negative numbers in the array is enough to decode the command and address of the comelit simplebus2 protocol.
 
-L’automazione dapprima controlla se la lunghezza dell’array è quella che ci aspettiamo per un comando correttamente ricevuto, quindi viene decodificato il valore dell’indirizzo e del comando, viene eseguito il controllo del checksum, e se il checksum è corretto viene generato un evento di home assistant del tipo “esphome.comelit_ricevuto” con comando e indirizzo nel campo dati.
+The automation first checks whether the length of the array is what we expect for a correctly received command, then the value of the address and command is decoded, the checksum check is performed, and if the checksum is correct, a home assistant event of the type "esphome.comelit_received" with command and address in the data field is generated.
 
-Basterà creare una automazione su home assistant triggerata dall’evento, discriminando solamente quelle con comando “50” e indirizzo relativo al proprio posto interno, per poter ricevere una notifica quando viene chiamato il nostro citofono.
+It will be enough to create an automation on home assistant triggered by the event, discriminating only those with command "50" and address related to one's home station, in order to receive a notification when our intercom is called.
 
-
-#### esempio di trigger:
+#### trigger example:
 
     platform: event
-    event_type: esphome.comelit_ricevuto
+    event_type: esphome.comelit_received
     event_data:
-      comando: "50"
-      indirizzo: "11"
+      command: "50"
+      address: "11"
 
 
-Per poter inviare i comandi sul bus, ho realizzato una semplice funzione che viene richiamata tramite un servizio di Home Assistant, la quale converte i campi indirizzo e comando nell’array di interi che può essere dato in pasto al componente “remote transmitter”.
-Remote transmitter si occuperà di pilotare il transistor, modulandolo con una portante a 25kHz per il numero di microsecondi indicato nei valori interi dell’array.
+In order to send commands over the bus, I have built a simple function that is invoked through a Home Assistant service, which converts the address and command fields into the array of integers that can be fed to the "remote transmitter" component.
+Remote transmitter will take care of driving the transistor, modulating it with a 25kHz carrier for the number of microseconds specified in the integer values of the array.
 
-La funzione che si occupa della codifica risiede all’interno del file comelit.h, che deve essere inserito nella cartella “esphome” della propria configurazione di home assistant, verrà richiamata tramite un include.
+The function that takes care of the encoding resides within the comelit.h file, which must be placed in the "esphome" folder of your home assistant configuration; it will be called via an include.
 
-Si possono realizzare anche servizi con già codificati all’interno comando e indirizzo fissati precedentemente. Si potrà creare quindi un comodo widget sul proprio smartphone, il quale richiamerà semplicemente il servizio “esphome.apri_portone” per poter aprire il portone con un tocco.
+You can also make services with already internally coded command and address set previously. You can then create a convenient widget on your smartphone, which will simply invoke the "esphome.open_door" service so that you can open the door with a touch.
 
-![Widget](/immagini/widget.jpg)
+![Widget](/images/widget.jpg)
 
-Il sistema crea un evento sul log di home assistant per ogni comando ricevuto sul bus. Se non si vuole utilizzare questa funzione basta eliminare la parte di software relativa.
+The system creates an event on the home assistant log for each command received on the bus. If you do not want to use this function, just delete the relevant part of the software.
 
-![Log](/immagini/log.png)
+![Log](/images/log.png)
 
-Il log viene "agganciato" all'entità sensor.comelit_stato
+The log is "hooked" to the sensor.comelit_state entity
 
-## Installazione
+## Installation
 
-- Copiare dentro la cartella esphome di home assistant il file comelit.h
-- Collegare il wemos al pc e aggiungerlo alla propria configurazione di esphome. Non collegarlo al pc mentre che è alimentato dal bus.
-- Appuntarsi la api encription key e la ota password del file di configurazione generato automaticamente.
-- Sostituire il codice base generato da esphome col codice del file esphome.yaml
-- Sostituire la api encription key e la ota password appuntati precedentemente negli appositi campi.
+- Copy inside the esphome folder of home assistant the comelit.h file.
+- Connect the wemos to the pc and add it to your esphome configuration. Do not connect it to the pc while it is bus powered.
+- Make a note of the api encription key and ota password of the automatically generated configuration file.
+- Replace the base code generated by esphome with the code in the esphome.yaml file.
+- Replace the api encription key and ota password pinned previously in the appropriate fields.
 
-## Acquisto materiali e pcb
+## Purchase of materials and pcb
 
-Ho la possibilità di fornire il pcb, i componenti, o anche l'intero hardware già saldato e collaudato.
+I have the ability to provide the pcb, components, or even the entire hardware already soldered and tested.
 
-Se sei interessato, contattami su mansellrace@gmail.com
+If you are interested, please contact me at mansellrace@gmail.com

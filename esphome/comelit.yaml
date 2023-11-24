@@ -5,14 +5,14 @@ esphome:
     - comelit.h
 
 esp8266:
-  board: d1_mini    
+  board: d1_mini
 
 # Enable logging
 logger:
   #level: VERY_VERBOSE
 
 ota:
-  password: "----------------incolla qui la tua ota password---------------------"
+  password: "----------------paste your ota password here---------------------"
 
 wifi:
   ssid: !secret wifi_ssid
@@ -24,29 +24,28 @@ wifi:
 captive_portal:
 api:
   encryption:
-    key: "----------------incolla qui la tua encription key---------------------"
+    key: "----------------paste your encryption key here---------------------"
   services:
-
-    - service: invia_codice
+    - service: send_code
       variables:
-        comando: int
-        indirizzo: int
+        command: int
+        address: int
       then:
         - remote_transmitter.transmit_raw:
             carrier_frequency: 25kHz
-            code: !lambda return comelit_encode(indirizzo, comando);
+            code: !lambda return comelit_encode(address, command);
         - homeassistant.service:
             service: logbook.log
             data:
-              name: "Citofono:"
-              entity_id: "binary_sensor.comelit_stato"
+              name: "Intercom:"
+              entity_id: "binary_sensor.comelit_state"
             data_template:
-              message: "Inviato comando personalizzato {{ com }}, indirizzo {{ ind }}"
+              message: "Sent custom command {{ com }}, address {{ ind }}"
             variables:
-              com: 'return comando;'
-              ind: 'return indirizzo;'
+              com: "return command;"
+              ind: "return address;"
 
-    - service: apri_portone_esterno
+    - service: outer_door_opener
       then:
         - remote_transmitter.transmit_raw:
             carrier_frequency: 25kHz
@@ -54,12 +53,11 @@ api:
         - homeassistant.service:
             service: logbook.log
             data:
-              name: "Citofono:"
-              entity_id: "binary_sensor.comelit_stato"
-              message: "aperto portone esterno tramite domotica"
+              name: "Intercom:"
+              entity_id: "binary_sensor.comelit_state"
+              message: "open external door via home automation"
 
-
-    - service: apri_portone_interno
+    - service: inner_door_opener
       then:
         - remote_transmitter.transmit_raw:
             carrier_frequency: 25kHz
@@ -67,11 +65,11 @@ api:
         - homeassistant.service:
             service: logbook.log
             data:
-              name: "Citofono:"
-              entity_id: "binary_sensor.comelit_stato"
-              message: "aperto portone interno tramite domotica"
+              name: "Intercom:"
+              entity_id: "binary_sensor.comelit_state"
+              message: "open internal door by home automation"
 
-    - service: apri_portoni
+    - service: gate_opener
       then:
         - remote_transmitter.transmit_raw:
             carrier_frequency: 25kHz
@@ -83,27 +81,26 @@ api:
         - homeassistant.service:
             service: logbook.log
             data:
-              name: "Citofono:"
-              entity_id: "binary_sensor.comelit_stato"
-              message: "aperti entrambi portoni tramite domotica"
-
+              name: "Intercom:"
+              entity_id: "binary_sensor.comelit_state"
+              message: "open both gates via home automation"
 
 globals:
-  - id: codice
+  - id: code
     type: int
     restore_value: no
-    initial_value: '0'
-  - id: indirizzo
+    initial_value: "0"
+  - id: address
     type: int
     restore_value: no
-    initial_value: '0'
-  - id: descrizione
+    initial_value: "0"
+  - id: description
     type: std::string
 
 binary_sensor:
   - platform: status
-    id: stato
-    name: "stato"
+    id: status
+    name: "status"
     icon: mdi:doorbell
 
 remote_transmitter:
@@ -121,9 +118,9 @@ remote_receiver:
   on_raw:
     then:
       - lambda: |-
-          id(codice) = 0;
-          id(indirizzo) = 0;
-          ESP_LOGV("DEBUG", "RICEVUTO CODICE RAW DI LUNGHEZZA %u", size(x));
+          id(code) = 0;
+          id(address) = 0;
+          ESP_LOGV("DEBUG", "LENGTH OF RECEIVED RAW CODE %u", size(x));
           char message[18];
           int bits = 0;
           if (size(x) == 38) {
@@ -155,72 +152,71 @@ remote_receiver:
                     if (j < 6) msgCode[j] = message[j];
                     else msgAddr[j - 6] = message[j];
                   }
-                  id(codice) = (msgCode[5] * 32) + (msgCode[4] * 16) + (msgCode[3] * 8) + (msgCode[2] * 4) + (msgCode[1] * 2) + msgCode[0];
-                  id(indirizzo) = (msgAddr[7] * 128) + (msgAddr[6] * 64) + (msgAddr[5] * 32) + (msgAddr[4] * 16) + (msgAddr[3] * 8) + (msgAddr[2] * 4) + (msgAddr[1] * 2) + msgAddr[0];
-                  if (id(codice) < 63)
+                  id(code) = (msgCode[5] * 32) + (msgCode[4] * 16) + (msgCode[3] * 8) + (msgCode[2] * 4) + (msgCode[1] * 2) + msgCode[0];
+                  id(address) = (msgAddr[7] * 128) + (msgAddr[6] * 64) + (msgAddr[5] * 32) + (msgAddr[4] * 16) + (msgAddr[3] * 8) + (msgAddr[2] * 4) + (msgAddr[1] * 2) + msgAddr[0];
+                  if (id(code) < 63)
                   {
-                    ESP_LOGD("DEBUG", "RICEVUTO COMANDO = %i", id(codice));
-                    ESP_LOGD("DEBUG", "RICEVUTO INDIRIZZO = %i", id(indirizzo));
+                    ESP_LOGD("DEBUG", "RECEIVED COMMAND = %i", id(code));
+                    ESP_LOGD("DEBUG", "RECEIVED ADDRESS = %i", id(address));
                     ESP_LOGD("DEBUG", "CHECKSUM OK");
                     auto capi = new esphome::api::CustomAPIDevice();
-                    capi->fire_homeassistant_event("esphome.comelit_ricevuto", {{"indirizzo", std::to_string(id(indirizzo))}, {"comando", std::to_string(id(codice))}});
+                    capi->fire_homeassistant_event("esphome.comelit_received", {{"address", std::to_string(id(address))}, {"command", std::to_string(id(code))}});
                   } else {
-                    id(codice) = 0;
-                    id(indirizzo) = 0;
+                    id(code) = 0;
+                    id(address) = 0;
                   }
                 }
               }
             }
           }
 
-# ------------------------------------------------------------------------------------------------------------
-# ELIMINARE LA PARTE SEGUENTE SE NON SI VUOLE OTTENERE UN LOG COMPLETO DI TUTTI I MESSAGGI CHE PASSANO SUL BUS
-# ------------------------------------------------------------------------------------------------------------
+      # ------------------------------------------------------------------------------------------------------------
+      # DELETE THE FOLLOWING PART IF YOU DO NOT WANT TO GET A COMPLETE LOG OF ALL MESSAGES PASSING OVER THE BUS
+      # ------------------------------------------------------------------------------------------------------------
 
       - if:
           condition:
-            lambda: 'return (id(codice) > 0) && (id(indirizzo) > 0);'
+            lambda: "return (id(code) > 0) && (id(address) > 0);"
           then:
             - lambda: |-
                 std::string str = "";
-                if (id(codice) == 50){
-                  str = "chiamata all'interno " + to_string(id(indirizzo));
-                } else if (id(codice) == 16) {
-                  str = "apertura portone esterno da interno " + to_string(id(indirizzo));
-                } else if (id(codice) == 20) {
-                  str = "avvio video da interno " + to_string(id(indirizzo));
-                } else if (id(codice) == 17) {
-                  str = "avvio audio da interno " + to_string(id(indirizzo));
-                } else if (id(codice) == 29) {
-                  if (id(indirizzo) == 1) {
-                    str = "apertura portone scala A";
-                  } else if (id(indirizzo) == 2) {
-                    str = "apertura portone scala B";
-                  } else if (id(indirizzo) == 4) {
-                    str = "apertura portone scala C";
+                if (id(code) == 50){
+                  str = "extension call " + to_string(id(address));
+                } else if (id(code) == 16) {
+                  str = "external door opening from inside " + to_string(id(address));
+                } else if (id(code) == 20) {
+                  str = "indoor video startup " + to_string(id(address));
+                } else if (id(code) == 17) {
+                  str = "indoor audio startup " + to_string(id(address));
+                } else if (id(code) == 29) {
+                  if (id(address) == 1) {
+                    str = "staircase door opening A";
+                  } else if (id(address) == 2) {
+                    str = "staircase door opening B";
+                  } else if (id(address) == 4) {
+                    str = "staircase door opening C";
                   }
                 }
-                id(descrizione) = str;
-                id(codice) = 0;
-                id(indirizzo) = 0;
+                id(description) = str;
+                id(code) = 0;
+                id(address) = 0;
             - if:
                 condition:
-                    lambda: 'return id(descrizione) != "";'
+                  lambda: 'return id(description) != "";'
                 then:
                   - logger.log:
-                      format: "Descrizione codice: %s"
-                      args: ['id(descrizione).c_str()']
+                      format: "description code: %s"
+                      args: ["id(description).c_str()"]
                   - homeassistant.service:
                       service: logbook.log
                       data:
-                        name: "Citofono:"
-                        entity_id: "binary_sensor.comelit_stato"
+                        name: "Intercom:"
+                        entity_id: "binary_sensor.comelit_state"
                       data_template:
                         message: "{{ com }}"
                       variables:
-                        com: 'return id(descrizione).c_str();'
-                  - lambda: 'id(descrizione) = "";'
-
+                        com: "return id(description).c_str();"
+                  - lambda: 'id(description) = "";'
 #      - homeassistant.event:
 #          event: esphome.comelit_raw
 #          data:
@@ -232,4 +228,3 @@ remote_receiver:
 #               if (it != x.end() - 1) str += ", ";
 #             }
 #             return esphome::to_string("[" + str + "]");'
-
